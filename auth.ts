@@ -5,10 +5,11 @@ import { db } from "./lib/db"
 import { getUserById } from "./data/user"
 import { UserRole } from "@prisma/client"
 import { getTwoFactorConfirmationByUserId } from "@/data/two-factor-confirmation"
+import { getAccountByUserId } from "./data/accounts"
 
 
  
-export const { handlers: {GET, POST}, auth, signIn, signOut } = NextAuth({
+export const { handlers: {GET, POST}, auth, signIn, signOut, unstable_update } = NextAuth({
   pages: {
     signIn: '/auth/signin',
     error: '/auth/error', // Error code passed in query string as ?error=
@@ -63,20 +64,34 @@ export const { handlers: {GET, POST}, auth, signIn, signOut } = NextAuth({
         session.user.role = token.role as UserRole;
       }
     
+      if( session.user){
+        session.user.isTwoFactorEnabled = token.isTwoFactorEnabled as boolean
+      }
+
+      if(session.user){
+        session.user.name = token.name;
+        session.user.email = token.email as string
+        session.user.isOAuth = token.isOAuth as boolean
+      }
+    
       return session
 
     },
-    async jwt({token,user}){
-      
+    async jwt({token}){
       if(!token.sub) return token;
       
-      //This is the id of the user
       const existingUser = await getUserById(token.sub)
 
       if(!existingUser) return token
 
-      token.role = existingUser.role;
+      const existingAccount = await getAccountByUserId(existingUser.id)
 
+
+      token.isOAuth = !!existingAccount
+      token.name = existingUser.name
+      token.email = existingUser.email
+      token.role = existingUser.role;
+      token.isTwoFactorEnabled = existingUser.isTwoFactorEnabled
       return token
     }
   },
